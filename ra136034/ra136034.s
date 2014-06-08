@@ -30,6 +30,7 @@ RESET_HANDLER:
     .set UART_UFCR, 0x90
     .set UART_UBIR, 0xA4
     .set UART_UBMR, 0xA8
+    .set UART_USR1, 0x94
     
     @1-Enable UART
     ldr r1, =UART_BASE
@@ -104,7 +105,7 @@ SUPERVISOR_HANDLER:
     msr CPSR_c, #0xD3
     @-Check syscall number
     cmp r7, #4
-    beq writeSyscall
+    beq write
     cmp r7, #1
     beq exitSyscall
     cmp r7, #2
@@ -112,26 +113,28 @@ SUPERVISOR_HANDLER:
     cmp r7, #20
     beq getpidSyscall
 
-    @------Write Syscall
-    writeSyscall:
+    @Make a Syscall Write 
+    write:
         push {r4-r6}
         ldr r3, =0x53FBC094
         ldr r5, =0x53FBC040
-        mov r0, r2
+        @make a mask in r0 to verify bit 13 of UART_USR1 is set as 1
+        mov r0, #1
         mov r0, #(1<<13)
-        writeLoop:
+        write_loop:
             cmp r2, #0
-            beq doneWriting
-            @--Wait for the transmission queue be ready
+            beq write_loop_end          @finish if all chars were transmitted
+        @Wait for the transmission queue be ready
         transmitterLoop:
             ldr r4, [r3]
             and r4, r4, r0
             cmp r4, #0
-            beq transmitterLoop
+            beq transmitterLoop         @try again if queue is full
         ldrb r6, [r1], #1
         strb r6, [r5]
-        sub r2, r2, #1
-        b writeLoop
+        sub r2, r2, #1                  @decrement numbers of chars to be transmitted
+        b write_loop
+        write_loop_end:
     doneWriting:
         pop {r4-r6}
         b exitSwInterruption
