@@ -4,12 +4,7 @@
 _start:		
 
 @--Configurable STACK values for each ARM core operation mode
-.set USR_STACK, 0x11000
-.set SVC_STACK, 0x10800
-.set UND_STACK, 0x07c00
-.set ABT_STACK, 0x07800
-.set FIQ_STACK, 0x07400
-.set IRQ_STACK, 0x07000
+
 
 interrupt_vector:
 	b RESET_HANDLER
@@ -57,8 +52,15 @@ RESET_HANDLER:
 	str r0, [r1, #UART_UBIR]
 	ldr r0, =0x0C34
 	str r0, [r1, #UART_UBMR]
+	
+	.set USR_STACK, 0x11000
+        .set SVC_STACK, 0x10800
+        .set UND_STACK, 0x07c00
+        .set ABT_STACK, 0x07800
+        .set FIQ_STACK, 0x07400
+        .set IRQ_STACK, 0x07000
 
-	@--Initializa Stack Points of All Modes
+	@Configure stacks for all modes
 	mov sp, #SVC_STACK
 	msr CPSR_c, #0xDF  @ Enter system mode, FIQ/IRQ disabled
 	mov sp, #USR_STACK
@@ -71,8 +73,8 @@ RESET_HANDLER:
 	msr CPSR_c, #0xDB  @ Enter undefined mode, FIQ/IRQ disabled
 	mov sp, #UND_STACK
 
-	@--Initialize array of active processes
-	ldr r1, =activeProcesses
+	@--Initialize array of living processes
+	ldr r1, =livingProcess
 	@--Process 0 is active
 	mov r0, #1
 	strb r0, [r1], #1
@@ -146,7 +148,7 @@ SUPERVISOR_HANDLER:
 		push {r1-r3}
 		@-Find available id to fork
 		mov r0, #0
-		ldr r1, =activeProcesses
+		ldr r1, =livingProcess
 		findLoop:
 		cmp r0, #8
 		beq noProcessAvailable
@@ -242,7 +244,7 @@ SUPERVISOR_HANDLER:
 		ldr r0, =currentProcess
 		ldr r0, [r0]
 		@-Mark id as inactive on array
-		ldr r1, =activeProcesses
+		ldr r1, =livingProcess
 		add r1, r1, r0
 		mov r0, #0
 		strb r0, [r1]
@@ -255,7 +257,7 @@ SUPERVISOR_HANDLER:
 mainScheduler:
 	ldr r0, =currentProcess
 	ldr r1, [r0]
-	ldr r0, =activeProcesses
+	ldr r0, =livingProcess
 	mov r2, #8
   	traverseArray:
 		cmp r2, #0
@@ -367,4 +369,4 @@ returnArray: .space 32
 
 @--CurrentProcess variable and array to store list of active ones
 currentProcess: .space 4
-activeProcesses: .space 8
+livingProcess: .space 8
