@@ -157,7 +157,7 @@ SUPERVISOR_HANDLER:
         str r14, [r1, r0, lsl #2]
         
         @ Load address of contexts array
-        ldr r1, =p1context
+        ldr r1, =contexts
         
         @ Move to right process context
         add r1, r1, r0, lsl #6
@@ -205,7 +205,7 @@ SUPERVISOR_HANDLER:
         ldr r3, =0x11000
         sub r3, r3, r0, lsl #12
         
-        @ Poiont r4 to stack of parent process
+        @ Point r4 to stack of parent process
         ldr r4, =0x11000
         sub r4, r4, r2, lsl #12
         
@@ -290,7 +290,7 @@ main:
         ldr r2, [r0, r1, lsl #2]
         mov r14, r2
         @ Restore registers r14 and r13
-        ldr r0, =p1context
+        ldr r0, =contexts
         add r0, r0, r1, lsl #6
         add r0, r0, #60
         ldr r2, [r0], #-4
@@ -321,7 +321,7 @@ main:
         ldr r2, [r0], #-4
             mov r4, r2
         @ Restore SPSR
-        ldr r2, =p1context
+        ldr r2, =contexts
         add r2, r2, r1, lsl #6
         ldr r3, [r2]
         msr SPSR, r3
@@ -367,7 +367,7 @@ p1user: .space 2048
 
 @ Array to hold saved contexts
 .org 0x12000
-p1context: .space 512
+contexts: .space 512
 
 
 .org 0x13000
