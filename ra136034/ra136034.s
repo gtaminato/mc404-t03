@@ -119,17 +119,17 @@ SUPERVISOR_HANDLER:
             cmp r2, #0
             beq write_loop_end          @finish if all chars were transmitted
         @Wait for the transmission queue be ready
-        transmitterLoop:
+        write_transmitter_loop:
             ldr r4, [r3]
             and r4, r4, r0
             cmp r4, #0
-            beq transmitterLoop         @try again if queue is full
+            beq write_transmitter_loop  @try again if queue is full
         ldrb r6, [r1], #1
         strb r6, [r5]
         sub r2, r2, #1                  @decrement numbers of chars to be transmitted
         b write_loop
         write_loop_end:
-    doneWriting:
+    write_end:
         pop {r4-r6}
         b SUPERVISOR_HANDLER_EXIT
 
