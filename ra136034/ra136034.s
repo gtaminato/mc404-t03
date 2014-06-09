@@ -75,7 +75,7 @@ RESET_HANDLER:
     mov sp, #UND_STACK
 
     @--Initialize array of living processes
-    ldr r1, =livingProcess
+    ldr r1, =arrayProcess
     @--Process 0 is active
     mov r0, #1
     strb r0, [r1], #1
@@ -103,17 +103,18 @@ RESET_HANDLER:
 SUPERVISOR_HANDLER:
     @-Set CPSR to Supervisor mode, IRQ/FIQ disabled
     msr CPSR_c, #0xD3
-    @-Check syscall number
-    cmp r7, #4
+    
+    @ Check which Syscall command we must execute
+    cmp r7, #0x4     @ write()
     beq write
-    cmp r7, #1
-    beq exitSyscall
-    cmp r7, #2
-    beq forkSyscall
-    cmp r7, #20
-    beq getpidSyscall
+    cmp r7, #0x2     @ fork()
+    beq fork
+    cmp r7, #0x14    @ getpid()
+    beq getpid
+    cmp r7, #0x1     @ exit()
+    beq exit
 
-    @Make a Syscall Write 
+    @ Make a Syscall Write 
     write:
         push {r4-r6}
         ldr r3, =0x53FBC094
@@ -137,44 +138,42 @@ SUPERVISOR_HANDLER:
         write_loop_end:
     doneWriting:
         pop {r4-r6}
-        b exitSwInterruption
+        b SUPERVISOR_HANDLER_EXIT
 
-    @-----GetPid Syscall
-    getpidSyscall:
-        ldr r0, =currentProcess
-        ldr r0, [r0]
-        add r0, r0, #1
-        b exitSwInterruption
-
-    @-----Fork Syscall
-    forkSyscall:
+    @ Make a Syscall Fork
+    fork:
         push {r1-r3}
-        @-Find available id to fork
-        mov r0, #0
-        ldr r1, =livingProcess
-        findLoop:
-        cmp r0, #8
-        beq noProcessAvailable
-        ldrb r3, [r1, r0]
-        cmp r3, #0
-        beq foundAvailable
-        add r0, r0, #1
-        b findLoop
-        foundAvailable:
-        @-Mark process id as active
+        
+        @ Try to find an available PID
+        ldr r1, =arrayProcess    @ Load address of arrayProcess
+        mov r0, #0               @ Initialize counter with 0
+        fork_find_process:
+            cmp r0, #8
+            beq noProcessAvailable  @ None of 8 process is available
+            ldrb r2, [r1, r0]       @ Load in r2 the current process
+            cmp r2, #0
+            addne r0, r0, #1
+            bne fork_find_process   @ Check the next process
+            
+        @ An available PID has been found, so we must enable it
         mov r2, #1
         strb r2, [r1, r0]
-        @-Save return address
+        
+        @ Store return address
         ldr r1, =returnArray
         str r14, [r1, r0, lsl #2]
-        @-Get address of contexts array
+        
+        @ Load address of contexts array
         ldr r1, =p1context
-        @-Move to right process context
+        
+        @ Move to right process context
         add r1, r1, r0, lsl #6
-        @-Save CPSR
+        
+        @ Store CPSR
         mrs r2, SPSR
         str r2, [r1], #4
-        @-Save Registers r0-r3
+        
+        @ Store Registers r0-r3
         mov r2, #0
         str r2, [r1], #4
         pop {r2}
@@ -183,7 +182,8 @@ SUPERVISOR_HANDLER:
         str r2, [r1], #4
         pop {r2}
         str r2, [r1], #4
-        @-Save Registers r4-r12
+        
+        @ Store Registers r4-r12
         mov r2, r4
         str r2, [r1], #4
         mov r2, r5
@@ -202,65 +202,74 @@ SUPERVISOR_HANDLER:
         str r2, [r1], #4
         mov r2, r12
         str r2, [r1], #4
-        @----Set r13 appropriately
+        
+        @ Store r13
         push {r4-r8}
         ldr r2, =currentProcess
         ldr r2, [r2]
-        @-Point r3 to stack of children process
+        
+        @ Point r3 to stack of children process
         ldr r3, =0x11000
         sub r3, r3, r0, lsl #12
-        @-Poiont r4 to stack of parent process
+        
+        @ Poiont r4 to stack of parent process
         ldr r4, =0x11000
         sub r4, r4, r2, lsl #12
-        @-Go to System Mode to recover r13 and r14
+        
+        @ Go to System Mode to recover r13 and r14
         msr CPSR_c, #0xDF   
         mov r5, r13
         mov r6, r14
-        @-Back to Supervidor Mode
+        
+        @ Back to Supervidor Mode
         msr CPSR_c, #0xD3
-        @-Loop to copy over stack
+        
+        @ Loop to copy over stack
         CopyStack:
-        cmp r4, r5
-        blt doneCopyingStack
-        ldr r7, [r4], #-4
-        str r7, [r3], #-4
-        b CopyStack
+            cmp r4, r5
+            blt doneCopyingStack
+            ldr r7, [r4], #-4
+            str r7, [r3], #-4
+            b CopyStack
         doneCopyingStack:
-        @-Adjust stack pointer
-        add r3, r3, #4
-        @-Save r13 and r14 on context array
-        str r3, [r1], #4
-        str r6, [r1]
-        pop {r4-r8}
+            @-Adjust stack pointer
+            add r3, r3, #4
+            @-Save r13 and r14 on context array
+            str r3, [r1], #4
+            str r6, [r1]
+            pop {r4-r8}
 
-        @-Increment process id (1-indexed instead of 0-indexed) and return
-        add r0, r0, #1
-        b exitSwInterruption  
+        add r0, r0, #1          @ Index starts on 0, so we must increment 1
+        b SUPERVISOR_HANDLER_EXIT  
 
         noProcessAvailable:
-        mov r0, #-1
-        b exitSwInterruption    
+            mov r0, #-1
+            b SUPERVISOR_HANDLER_EXIT    
 
-    @-----Exit Syscall
-    exitSyscall:
-        @-Get currentProcess id
+    @ Make a Syscall getpid
+    getpid:
+        ldr r0, =currentProcess     @ Load address of current process
+        ldr r0, [r0]                @ Load value
+        add r0, r0, #1              @ PID starts on 0
+        b SUPERVISOR_HANDLER_EXIT
+        
+    @ Make a Syscall exit
+    exit:      
+        ldr r1, =arrayProcess
         ldr r0, =currentProcess
-        ldr r0, [r0]
-        @-Mark id as inactive on array
-        ldr r1, =livingProcess
-        add r1, r1, r0
+        ldr r0, [r0]                @ Load value of current PID
+        ldrb r1, [r1, r0]           @ Load in r1 the current process address
         mov r0, #0
-        strb r0, [r1]
-        @-Jump to scheduler
+        strb r0, [r1]               @ Set current PID as inactive
         b mainScheduler
 
-    exitSwInterruption:
+    SUPERVISOR_HANDLER_EXIT:
         movs pc, lr
 
 mainScheduler:
     ldr r0, =currentProcess
     ldr r1, [r0]
-    ldr r0, =livingProcess
+    ldr r0, =arrayProcess
     mov r2, #8
       traverseArray:
         cmp r2, #0
@@ -372,4 +381,4 @@ returnArray: .space 32
 
 @--CurrentProcess variable and array to store list of active ones
 currentProcess: .space 4
-livingProcess: .space 8
+arrayProcess: .space 8
