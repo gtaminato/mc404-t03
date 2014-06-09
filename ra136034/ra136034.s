@@ -3,9 +3,6 @@
 
 _start:
 
-@--Configurable STACK values for each ARM core operation mode
-
-
 interrupt_vector:
     b RESET_HANDLER
 .org 0x08
@@ -18,7 +15,7 @@ RESET_HANDLER:
     ldr r0, =interrupt_vector
     mcr p15, 0, r0, c12, c0, 0
 
-    @--Set CPSR to Supervisor mode, IRQ/FIQ disabled
+    @ Set CPSR to Supervisor mode
     msr CPSR_c, #0xD3 
 
     @Set UART - according to uart.pdf
@@ -74,34 +71,30 @@ RESET_HANDLER:
     msr CPSR_c, #0xDB  @ Enter undefined mode, FIQ/IRQ disabled
     mov sp, #UND_STACK
 
-    @--Initialize array of living processes
-    ldr r1, =arrayProcess
-    @--Process 0 is active
-    mov r0, #1
-    strb r0, [r1], #1
-    @--All others are inactive
-    mov r0, #0
-    mov r2, #7
-    loop1:
-        cmp r2, #0
-        beq endLoop1
-        strb r0, [r1], #1
-        sub r2, r2, #1
-        b loop1
-    endLoop1:
+    @ Initialize processes
+    ldr r0, =array_process
+    mov r1, #1
+    strb r1, [r0], #1       @ First one is enabled
+    mov r1, #0
+    strb r1, [r0], #1       @ The others are disabled
+    strb r1, [r0], #1
+    strb r1, [r0], #1
+    strb r1, [r0], #1
+    strb r1, [r0], #1
+    strb r1, [r0], #1
+    strb r1, [r0]
 
-    @--Set currentProcess=0
-    ldr r1, =currentProcess
-    mov r0, #0
-    str r0, [r1]
+    @ Initialize current_process
+    ldr r0, =current_process
+    str r1, [r0]
 
-    @--Change to User mode, enable interrupts  and Jump to user code
+    @ Back to User mode
     msr CPSR_c, #0x10
-    mov pc, #0x8000
+    mov pc, #0x8000         @ Jump to user code
 
 
 SUPERVISOR_HANDLER:
-    @-Set CPSR to Supervisor mode, IRQ/FIQ disabled
+    @ Set CPSR to Supervisor mode
     msr CPSR_c, #0xD3
     
     @ Check which Syscall command we must execute
@@ -145,7 +138,7 @@ SUPERVISOR_HANDLER:
         push {r1-r3}
         
         @ Try to find an available PID
-        ldr r1, =arrayProcess    @ Load address of arrayProcess
+        ldr r1, =array_process    @ Load address of array_process
         mov r0, #0               @ Initialize counter with 0
         fork_find_process:
             cmp r0, #8
@@ -205,7 +198,7 @@ SUPERVISOR_HANDLER:
         
         @ Store r13
         push {r4-r8}
-        ldr r2, =currentProcess
+        ldr r2, =current_process
         ldr r2, [r2]
         
         @ Point r3 to stack of children process
@@ -248,15 +241,15 @@ SUPERVISOR_HANDLER:
 
     @ Make a Syscall getpid
     getpid:
-        ldr r0, =currentProcess     @ Load address of current process
+        ldr r0, =current_process     @ Load address of current process
         ldr r0, [r0]                @ Load value
         add r0, r0, #1              @ PID starts on 0
         b SUPERVISOR_HANDLER_EXIT
         
     @ Make a Syscall exit
     exit:      
-        ldr r1, =arrayProcess
-        ldr r0, =currentProcess
+        ldr r1, =array_process
+        ldr r0, =current_process
         ldr r0, [r0]                @ Load value of current PID
         ldrb r1, [r1, r0]           @ Load in r1 the current process address
         mov r0, #0
@@ -267,9 +260,9 @@ SUPERVISOR_HANDLER:
         movs pc, lr
 
 mainScheduler:
-    ldr r0, =currentProcess
+    ldr r0, =current_process
     ldr r1, [r0]
-    ldr r0, =arrayProcess
+    ldr r0, =array_process
     mov r2, #8
       traverseArray:
         cmp r2, #0
@@ -279,7 +272,7 @@ mainScheduler:
         addne r1, r1, #1
         ldrb r3, [r0, r1]
         cmp r3, #1
-        @-if equal go to this process, changing currentProcess first
+        @-if equal go to this process, changing current_process first
         beq changeProcess
         sub r2, r2, #1
         b traverseArray
@@ -289,7 +282,7 @@ mainScheduler:
             b infiniteLoop
     @--Change process and return execution to it
     changeProcess:
-    ldr r0, =currentProcess
+    ldr r0, =current_process
     str r1, [r0]
     @-Set return address on r14
     ldr r0, =returnArray
@@ -380,5 +373,5 @@ p1context: .space 512
 returnArray: .space 32
 
 @--CurrentProcess variable and array to store list of active ones
-currentProcess: .space 4
-arrayProcess: .space 8
+current_process: .space 4
+array_process: .space 8
