@@ -28,6 +28,7 @@ RESET_HANDLER:
     .set UART_UBIR, 0xA4
     .set UART_UBMR, 0xA8
     .set UART_USR1, 0x94
+    .set UART_UTXD, 0x40
     
     @1-Enable UART
     ldr r1, =UART_BASE
@@ -90,14 +91,14 @@ RESET_HANDLER:
 
     @ Back to User mode
     msr CPSR_c, #0x10
-    mov pc, #0x8000         @ Jump to user code
+    mov pc, #0x77802000         @ Jump to DUMMYUSER
 
 
 SUPERVISOR_HANDLER:
     @ Set CPSR to Supervisor mode
     msr CPSR_c, #0xD3
     
-    @ Check which Syscall command we must execute
+    @ Determine which Syscall command we must execute
     cmp r7, #0x4     @ write()
     beq write
     cmp r7, #0x2     @ fork()
@@ -109,28 +110,26 @@ SUPERVISOR_HANDLER:
 
     @ Make a Syscall Write 
     write:
-        push {r4-r6}
-        ldr r3, =0x53FBC094
-        ldr r5, =0x53FBC040
+        push {r4, r5}
+        ldr r3, =UART_BASE
         @make a mask in r0 to verify bit 13 of UART_USR1 is set as 1
-        mov r0, #1
         mov r0, #(1<<13)
         write_loop:
             cmp r2, #0
             beq write_loop_end          @finish if all chars were transmitted
-        @Wait for the transmission queue be ready
-        write_transmitter_loop:
-            ldr r4, [r3]
-            and r4, r4, r0
-            cmp r4, #0
-            beq write_transmitter_loop  @try again if queue is full
-        ldrb r6, [r1], #1
-        strb r6, [r5]
+            @Wait for the transmission queue be ready
+            check_queue:
+                ldr r4, [r3, #UART_USR1]
+                and r4, r4, r0
+                cmp r4, #0
+                beq check_queue         @try again if queue is full
+        ldrb r5, [r1], #1               @take a char using char pointer in r1       
+        strb r5, [r3, #UART_UTXD]       @sends it to TX_FIFO through UART_UTXD storing
         sub r2, r2, #1                  @decrement numbers of chars to be transmitted
         b write_loop
         write_loop_end:
-    write_end:
-        pop {r4-r6}
+        
+        pop {r4, r5}
         b SUPERVISOR_HANDLER_EXIT
 
     @ Make a Syscall Fork
