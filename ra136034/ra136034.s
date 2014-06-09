@@ -153,7 +153,7 @@ SUPERVISOR_HANDLER:
         strb r2, [r1, r0]
         
         @ Store return address
-        ldr r1, =returnArray
+        ldr r1, =return_array
         str r14, [r1, r0, lsl #2]
         
         @ Load address of contexts array
@@ -232,7 +232,7 @@ SUPERVISOR_HANDLER:
             str r6, [r1]
             pop {r4-r8}
 
-        add r0, r0, #1          @ Index starts on 0, so we must increment 1
+        add r0, r0, #1               @ Index starts on 0, so we must increment 1
         b SUPERVISOR_HANDLER_EXIT  
 
         fork_none_PID_avaiable:
@@ -242,8 +242,8 @@ SUPERVISOR_HANDLER:
     @ Make a Syscall getpid
     getpid:
         ldr r0, =current_process     @ Load address of current process
-        ldr r0, [r0]                @ Load value
-        add r0, r0, #1              @ PID starts on 0
+        ldr r0, [r0]                 @ Load value
+        add r0, r0, #1               @ PID starts on 0
         b SUPERVISOR_HANDLER_EXIT
         
     @ Make a Syscall exit
@@ -254,17 +254,17 @@ SUPERVISOR_HANDLER:
         ldrb r1, [r1, r0]           @ Load in r1 the current process address
         mov r0, #0
         strb r0, [r1]               @ Set current PID as inactive
-        b mainScheduler
+        b main
 
     SUPERVISOR_HANDLER_EXIT:
         movs pc, lr
 
-mainScheduler:
+main:
     ldr r0, =current_process
     ldr r1, [r0]
     ldr r0, =array_process
     mov r2, #8
-      traverseArray:
+    traverseArray:
         cmp r2, #0
         beq endTraversal
         cmp r1, #7
@@ -272,80 +272,81 @@ mainScheduler:
         addne r1, r1, #1
         ldrb r3, [r0, r1]
         cmp r3, #1
-        @-if equal go to this process, changing current_process first
+        @ if equal go to this process, changing current_process first
         beq changeProcess
         sub r2, r2, #1
         b traverseArray
     endTraversal:
-        @--No more user processes to run, wait for interruption
+        @ No more user processes to run, wait for interruption
         infiniteLoop:
             b infiniteLoop
-    @--Change process and return execution to it
+            
+    @ Change process and return execution to it
     changeProcess:
-    ldr r0, =current_process
-    str r1, [r0]
-    @-Set return address on r14
-    ldr r0, =returnArray
-    ldr r2, [r0, r1, lsl #2]
-    mov r14, r2
-    @-Restore registers r14 and r13
-    ldr r0, =p1context
-    add r0, r0, r1, lsl #6
-    add r0, r0, #60
-    ldr r2, [r0], #-4
-    ldr r3, [r0], #-4
-    @-Change to System Mode
-    msr CPSR_c, #0xDF
-    mov r14, r2
-    mov r13, r3
-    @-Back to Supervisor
-    msr CPSR_c, #0xD3
-    @-Restore registers r12-r4
-    ldr r2, [r0], #-4
-    mov r12, r2
-    ldr r2, [r0], #-4
-        mov r11, r2
-    ldr r2, [r0], #-4
-        mov r10, r2
-    ldr r2, [r0], #-4
-        mov r9, r2
-    ldr r2, [r0], #-4
-        mov r8, r2
-    ldr r2, [r0], #-4
-        mov r7, r2
-    ldr r2, [r0], #-4
-        mov r6, r2
-    ldr r2, [r0], #-4
-        mov r5, r2
-    ldr r2, [r0], #-4
-        mov r4, r2
-    @-Restore SPSR
-    ldr r2, =p1context
-    add r2, r2, r1, lsl #6
-    ldr r3, [r2]
-    msr SPSR, r3
-    @-Restore registers r3-r0
-    ldr r1, [r0], #-4
-    mov r3, r1
-    ldr r1, [r0], #-4
-    mov r2, r1
-    ldr r1, [r0], #-4
-    ldr r0, [r0]
-    @-Return execution to this process
-    movs pc, lr
+        ldr r0, =current_process
+        str r1, [r0]
+        @ Set return address on r14
+        ldr r0, =return_array
+        ldr r2, [r0, r1, lsl #2]
+        mov r14, r2
+        @ Restore registers r14 and r13
+        ldr r0, =p1context
+        add r0, r0, r1, lsl #6
+        add r0, r0, #60
+        ldr r2, [r0], #-4
+        ldr r3, [r0], #-4
+        @ Change to System Mode
+        msr CPSR_c, #0xDF
+        mov r14, r2
+        mov r13, r3
+        @ Back to Supervisor
+        msr CPSR_c, #0xD3
+        @ Restore registers r12-r4
+        ldr r2, [r0], #-4
+        mov r12, r2
+        ldr r2, [r0], #-4
+            mov r11, r2
+        ldr r2, [r0], #-4
+            mov r10, r2
+        ldr r2, [r0], #-4
+            mov r9, r2
+        ldr r2, [r0], #-4
+            mov r8, r2
+        ldr r2, [r0], #-4
+            mov r7, r2
+        ldr r2, [r0], #-4
+            mov r6, r2
+        ldr r2, [r0], #-4
+            mov r5, r2
+        ldr r2, [r0], #-4
+            mov r4, r2
+        @ Restore SPSR
+        ldr r2, =p1context
+        add r2, r2, r1, lsl #6
+        ldr r3, [r2]
+        msr SPSR, r3
+        @ Restore registers r3-r0
+        ldr r1, [r0], #-4
+        mov r3, r1
+        ldr r1, [r0], #-4
+        mov r2, r1
+        ldr r1, [r0], #-4
+        ldr r0, [r0]
+        @ Return execution to this process
+        movs pc, lr
 
 .ltorg
 
-@--Interruption mode stacks
+@ Interruption mode stacks
 .org 0x6C00
 irqStack: .space 1024
 fiqStack: .space 1024
 abtStack: .space 1024
 undStack: .space 1024
 
-@--User software goes in this memory range
+@ User software goes in this memory range
 
-@--User and supervisor mode stacks
+@ User and supervisor mode stacks
 .org 0x9000
 p8supervisor: .space 2048
 p8user: .space 2048
@@ -364,14 +365,12 @@ p2user: .space 2048
 p1supervisor: .space 2048
 p1user: .space 2048
 
-@--Array to hold saved contexts
+@ Array to hold saved contexts
 .org 0x12000
 p1context: .space 512
 
-@--Array to hold return addresses
-.org 0x13000
-returnArray: .space 32
 
-@--CurrentProcess variable and array to store list of active ones
-current_process: .space 4
-array_process: .space 8
+.org 0x13000
+return_array:       .space 32
+current_process:    .space 4
+array_process:      .space 8
