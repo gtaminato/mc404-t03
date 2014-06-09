@@ -138,15 +138,15 @@ SUPERVISOR_HANDLER:
         push {r1-r3}
         
         @ Try to find an available PID
-        ldr r1, =array_process    @ Load address of array_process
-        mov r0, #0               @ Initialize counter with 0
+        ldr r1, =array_process          @ Load address of array_process
+        mov r0, #0                      @ Initialize counter with 0
         fork_find_process:
             cmp r0, #8
-            beq noProcessAvailable  @ None of 8 process is available
-            ldrb r2, [r1, r0]       @ Load in r2 the current process
+            beq fork_none_PID_avaiable  @ None of 8 process is available
+            ldrb r2, [r1, r0]           @ Load in r2 the current process
             cmp r2, #0
             addne r0, r0, #1
-            bne fork_find_process   @ Check the next process
+            bne fork_find_process       @ Check the next process
             
         @ An available PID has been found, so we must enable it
         mov r2, #1
@@ -218,16 +218,16 @@ SUPERVISOR_HANDLER:
         msr CPSR_c, #0xD3
         
         @ Loop to copy over stack
-        CopyStack:
+        fork_copy_stack:
             cmp r4, r5
             blt doneCopyingStack
             ldr r7, [r4], #-4
             str r7, [r3], #-4
             b CopyStack
-        doneCopyingStack:
-            @-Adjust stack pointer
+        fork_copy_stack_end:
+            @ Adjust stack pointer
             add r3, r3, #4
-            @-Save r13 and r14 on context array
+            @ Save r13 and r14 on context array
             str r3, [r1], #4
             str r6, [r1]
             pop {r4-r8}
@@ -235,7 +235,7 @@ SUPERVISOR_HANDLER:
         add r0, r0, #1          @ Index starts on 0, so we must increment 1
         b SUPERVISOR_HANDLER_EXIT  
 
-        noProcessAvailable:
+        fork_none_PID_avaiable:
             mov r0, #-1
             b SUPERVISOR_HANDLER_EXIT    
 
