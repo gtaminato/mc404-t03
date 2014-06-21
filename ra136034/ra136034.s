@@ -155,6 +155,9 @@ RESET_HANDLER:
     strb r1, [r0], #1
     strb r1, [r0], #1
     strb r1, [r0]
+    
+    .set ONE_CONTEXT_SZ, #68
+    .set PC_DISPLACEMENT, #60
 
     @ Initialize current_process
     ldr r0, =current_process
@@ -336,69 +339,55 @@ SUPERVISOR_HANDLER:
         
 SCHEDULE_HANDLE:
     b save_context
-    
-
 
 @ Save current context in array of contexts
 save_context:
-    push {r0, r1, r2, r3}
-    @ First, we must save PC
+    push {r0, r1, r2}
+
     ldr r0, =current_process 
     ldr r0, [r0]                @ Load process number being executed
-    ldr r1, =process_pcs
-    mul r0, r0, #4              @ Multiplies process number by 4 
-    add r1, r1, r0
+    sub r0, r0, #1
+    ldr r1, ONE_CONTEXT_SZ
+    mul r2, r0, r1              @ (PID-1)*68
+    ldr r1, =contexts
+    add r0, r1, r2
+    
+    @ Save Registers from r0 to r12
+    pop {r1}
+    str r1, [r0], #4            @ Save r0
+    pop {r1}
+    str r1, [r0], #4            @ Save r1
+    pop {r1}
+    str r1, [r0], #4            @ Save r2
+    str r3, [r0], #4            @ Save r3
+    str r4, [r0], #4            @ Save r4
+    str r5, [r0], #4            @ Save r5
+    str r6, [r0], #4            @ Save r6
+    str r7, [r0], #4            @ Save r7
+    str r8, [r0], #4            @ Save r8
+    str r9, [r0], #4            @ Save r9
+    str r10, [r0], #4           @ Save r10
+    str r11, [r0], #4           @ Save r11
+    str r12, [r0], #4           @ Save r12
+    
+    @ Now we need to switch to System mode
+    @ and save r13-r14
+    msr CPSR_c, #0xDF
+    mov r1, r13
+    mov r2, r14
+    str r1, [r0], #4
+    str r2, [r0], #4
+    
+    @ Save PC
     sub lr, lr, #4
-    str lr, [r1]
-    @-Get address of contexts array
-        ldr r1, =array_process
-        @-Move to right process context
-    ldr r0, =current_process
-    ldr r0, [r0]
-        add r1, r1, r0, lsl #6
-        @-Save CPSR
-        mrs r2, SPSR
-        str r2, [r1], #4
-        @-Save Registers r0-r3
-        pop {r2}
-        str r2, [r1], #4
-        pop {r2}
-        str r2, [r1], #4
-        pop {r2}
-        str r2, [r1], #4
-        pop {r2}
-        str r2, [r1], #4
-        @-Save Registers r4-r12
-        mov r2, r4
-        str r2, [r1], #4
-        mov r2, r5
-        str r2, [r1], #4
-        mov r2, r6
-        str r2, [r1], #4
-        mov r2, r7
-        str r2, [r1], #4
-        mov r2, r8
-        str r2, [r1], #4
-        mov r2, r9
-        str r2, [r1], #4
-        mov r2, r10
-        str r2, [r1], #4
-        mov r2, r11
-        str r2, [r1], #4
-        mov r2, r12
-        str r2, [r1], #4
-    @-Go to System Mode to recover r13 and r14
-        msr CPSR_c, #0xDF   
-        mov r2, r13
-        mov r3, r14
-        @-Back to IRQ Mode
-        msr CPSR_c, #0x92
-    @-Save registers r13 and r14
-    str r2, [r1], #4
-    str r3, [r1]
+    str lr, [r0], #4
+    
+    @ Save CPSR
+    mrs r1, SPSR
+    str r1, [r0]
   
-    @-Back to Supervisor
-        msr CPSR_c, #0xD3
+    @ Return to Supervisor
+    msr CPSR_c, #0xD3
         
 main:
     ldr r0, =current_process
@@ -513,20 +502,21 @@ PID1_sup: .space PROCESS_STACK_SZ
 PID1: .space PROCESS_STACK_SZ
 
 @ Array to hold saved contexts
-.org 0x12000
+.org 0x7770D800
 contexts: .space 544            @ 17 registers * 4 bytes each register * 8 process = 544
 
 @ Graphic representation of contexts
-@ PID1: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID2: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID3: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID4: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID5: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID6: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID7: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
-@ PID8: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID1: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID2: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID3: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID4: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID5: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID6: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID7: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
+@ PID8: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
 @ Each PID row: 17 registers * 4 bytes each register = 68 Bytes
-@ PID_context_address = 0x12000 + (PID-1)*68
+@ PID_head_context_address = 0x7770D800 + (PID-1)*68
+@ PID_PC_address = PID_head_context_address + 15*4
 
 
 .org 0x13000
