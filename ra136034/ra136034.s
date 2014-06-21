@@ -205,32 +205,37 @@ SUPERVISOR_HANDLER:
 
     @ Make a Syscall Fork
     fork:
-        push {r1-r3}
+        push {r1-r3}                    @push them to make some calcs before store them in context vector
         
         @ Try to find an available PID
-        ldr r1, =array_process          @ Load address of array_process
+        ldr r1, =array_process          @load address of array_process
         mov r0, #0                      @ Initialize counter with 0
-        fork_find_process:
+        check_available_PID:
             cmp r0, #8
-            beq fork_none_PID_avaiable  @ None of 8 process is available
-            ldrb r2, [r1, r0]           @ Load in r2 the current process
-            cmp r2, #0
-            addne r0, r0, #1
-            bne fork_find_process       @ Check the next process
+            beq no_more_PID             @didn't find any available process
+            ldrb r2, [r1, r0]           @loads in r2 the current process
+            cmp r2, #0                  @check if process is available
+            beq check_available_PID_end @if available stop searching
+            add r0, r0, #1
+            b check_available_PID       @ Check the next process
+        check_available_PID_end:
             
-        @ An available PID has been found, so we must enable it
+        @Mark found PID as in use
         mov r2, #1
         strb r2, [r1, r0]
         
-        @ Store return address
-        ldr r1, =return_array
-        str r14, [r1, r0, lsl #2]
+        @store the process lr in 
+        ldr r1, =process_pcs
+        mul r2, r0, #4
+        str lr, [r1, r2]
         
-        @ Load address of contexts array
+        @Load context
         ldr r1, =contexts
         
-        @ Move to right process context
-        add r1, r1, r0, lsl #6
+        @Calculates displacement
+        sub r2, r0, #1          @correction
+        mul r2, #68             @17 register in each context, each register having 4 bytes = 68
+        add r1, r2              @now r1 points to the right context
         
         @ Store CPSR
         mrs r2, SPSR
@@ -305,7 +310,7 @@ SUPERVISOR_HANDLER:
         add r0, r0, #1               @ Index starts on 0, so we must increment 1
         b SUPERVISOR_HANDLER_EXIT  
 
-        fork_none_PID_avaiable:
+        no_more_PID:
             mov r0, #-1
             b SUPERVISOR_HANDLER_EXIT    
 
@@ -330,6 +335,7 @@ SUPERVISOR_HANDLER:
         movs pc, lr
         
 SCHEDULE_HANDLE:
+    b save_context
     
 
 
@@ -339,7 +345,7 @@ save_context:
     @-Save return address
     ldr r0, =current_process
     ldr r0, [r0]
-    ldr r1, =return_array
+    ldr r1, =process_pcs
     sub r14, r14, #4
     str r14, [r1, r0, lsl #2]
     @-Get address of contexts array
@@ -392,8 +398,6 @@ save_context:
     @-Back to Supervisor
         msr CPSR_c, #0xD3
         
-        
-
 main:
     ldr r0, =current_process
     ldr r1, [r0]
@@ -421,7 +425,7 @@ main:
         ldr r0, =current_process
         str r1, [r0]
         @ Set return address on r14
-        ldr r0, =return_array
+        ldr r0, =process_pcs
         ldr r2, [r0, r1, lsl #2]
         mov r14, r2
         @ Restore registers r14 and r13
@@ -512,6 +516,6 @@ contexts: .space 512
 
 
 .org 0x13000
-return_array:       .space 32
+process_pcs:       .space 32    @stores PC from all process to be used later 32 = 4bytes from lr * 8 available
 current_process:    .space 4
 array_process:      .space 8    @array of process containing one byte for each process if 0->dead, if 1->alive
