@@ -287,21 +287,20 @@ SUPERVISOR_HANDLER:
         movs pc, lr
 
 
-@--------------Main Scheduler-------------------------@
-@-Coming from GPT interruption, save context first
-mainSchedulerSaveFirst:
-  push {r0-r3}
-  @-Save return address
-  ldr r0, =current_process
-  ldr r0, [r0]
-  ldr r1, =return_array
-  sub r14, r14, #4
-  str r14, [r1, r0, lsl #2]
-  @-Get address of contexts array
+@ Save current context
+save_context:
+    push {r0-r3}
+    @-Save return address
+    ldr r0, =current_process
+    ldr r0, [r0]
+    ldr r1, =return_array
+    sub r14, r14, #4
+    str r14, [r1, r0, lsl #2]
+    @-Get address of contexts array
         ldr r1, =array_process
         @-Move to right process context
-  ldr r0, =current_process
-  ldr r0, [r0]
+    ldr r0, =current_process
+    ldr r0, [r0]
         add r1, r1, r0, lsl #6
         @-Save CPSR
         mrs r2, SPSR
@@ -334,17 +333,17 @@ mainSchedulerSaveFirst:
         str r2, [r1], #4
         mov r2, r12
         str r2, [r1], #4
-  @-Go to System Mode to recover r13 and r14
+    @-Go to System Mode to recover r13 and r14
         msr CPSR_c, #0xDF   
         mov r2, r13
         mov r3, r14
         @-Back to IRQ Mode
         msr CPSR_c, #0x92
-  @-Save registers r13 and r14
-  str r2, [r1], #4
-  str r3, [r1]
+    @-Save registers r13 and r14
+    str r2, [r1], #4
+    str r3, [r1]
   
-  @-Back to Supervisor
+    @-Back to Supervisor
         msr CPSR_c, #0xD3
         
         
