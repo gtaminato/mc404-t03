@@ -343,7 +343,7 @@ SCHEDULE_HANDLE:
 save_context:
     push {r0, r1, r2, r3}
     @ First, we must save PC
-    ldr r0, =current_process 
+    ldr r0, =current_process
     ldr r0, [r0]                @ Load process number being executed
     ldr r1, =process_pcs
     mul r0, r0, #4              @ Multiplies process number by 4 
