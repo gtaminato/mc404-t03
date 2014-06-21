@@ -339,15 +339,17 @@ SCHEDULE_HANDLE:
     
 
 
-@ Save current context
+@ Save current context in array of contexts
 save_context:
-    push {r0-r3}
-    @-Save return address
+    push {r0, r1, r2, r3}
+    @ First, we must save PC
     ldr r0, =current_process
-    ldr r0, [r0]
+    ldr r0, [r0]                @ Load process number being executed
     ldr r1, =process_pcs
-    sub r14, r14, #4
-    str r14, [r1, r0, lsl #2]
+    mul r0, r0, #4              @ Multiplies process number by 4 
+    add r1, r1, r0
+    sub lr, lr, #4
+    str lr, [r1]
     @-Get address of contexts array
         ldr r1, =array_process
         @-Move to right process context
@@ -512,7 +514,19 @@ PID1: .space PROCESS_STACK_SZ
 
 @ Array to hold saved contexts
 .org 0x12000
-contexts: .space 512
+contexts: .space 544            @ 17 registers * 4 bytes each register * 8 process = 544
+
+@ Graphic representation of contexts
+@ PID1: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID2: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID3: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID4: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID5: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID6: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID7: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ PID8: [PC][LR][SP][R12][R11][R10][R9][R8][R7][R6][R5][R4][R3][R2][R1][R0][CSPR]
+@ Each PID row: 17 registers * 4 bytes each register = 68 Bytes
+@ PID_context_address = 0x12000 + (PID-1)*68
 
 
 .org 0x13000
