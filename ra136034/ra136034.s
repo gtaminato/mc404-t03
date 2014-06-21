@@ -52,7 +52,7 @@ RESET_HANDLER:
     ldr r0, =0x0C34
     str r0, [r1, #UART_UBMR]
     
-    .set USR_STACK, 0x11000
+        .set USR_STACK, 0x11000
         .set SVC_STACK, 0x10800
         .set UND_STACK, 0x07c00
         .set ABT_STACK, 0x07800
@@ -90,7 +90,7 @@ RESET_HANDLER:
     str r1, [r0]
 
     @ Back to User mode
-    msr CPSR_c, #0x10
+    msr CPSR_c, #0x10           @sets CPSR_c bits adequated to user mode
     mov pc, #0x77802000         @ Jump to DUMMYUSER
 
 
@@ -337,32 +337,38 @@ main:
 .ltorg
 
 @ Interruption mode stacks
-.org 0x6C00
-irqStack: .space 1024
-fiqStack: .space 1024
-abtStack: .space 1024
-undStack: .space 1024
+.org 0x77701000
+SVC_stack: .space 1024
+UND_stack: .space 1024
+ABT_stack: .space 1024
+UND_stack: .space 1024
 
 @ User software goes in this memory range
 
+.set PROCESS_STACK_SZ, 2048   @each process should have a user mode to store 18 registers r0 to 15, and CPSR 
+                                @which equals a memory space of 17 x 4 = 68 bytes
+
 @ User and supervisor mode stacks
-.org 0x9000
-p8supervisor: .space 2048
-p8user: .space 2048
-p7supervisor: .space 2048
-p7user: .space 2048
-p6supervisor: .space 2048
-p6user: .space 2048
-p5supervisor: .space 2048
-p5user: .space 2048
-p4supervisor: .space 2048
-p4user: .space 2048
-p3supervisor: .space 2048
-p3user: .space 2048
-p2supervisor: .space 2048
-p2user: .space 2048
-p1supervisor: .space 2048
-p1user: .space 2048
+.org 0x77705800
+
+
+
+PID8_sup: .space PROCESS_STACK_SZ
+PID8: .space PROCESS_STACK_SZ
+PID7_sup: .space PROCESS_STACK_SZ
+PID7: .space PROCESS_STACK_SZ
+PID6_sup: .space PROCESS_STACK_SZ
+PID6: .space PROCESS_STACK_SZ
+PID5_sup: .space PROCESS_STACK_SZ
+PID5: .space PROCESS_STACK_SZ
+PID4_sup: .space PROCESS_STACK_SZ
+PID4: .space PROCESS_STACK_SZ
+PID3_sup: .space PROCESS_STACK_SZ
+PID3: .space PROCESS_STACK_SZ
+PID2_sup: .space PROCESS_STACK_SZ
+PID2: .space PROCESS_STACK_SZ
+PID1_sup: .space PROCESS_STACK_SZ
+PID1: .space PROCESS_STACK_SZ
 
 @ Array to hold saved contexts
 .org 0x12000
