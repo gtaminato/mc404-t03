@@ -90,7 +90,7 @@ RESET_HANDLER:
     str r1, [r0]
 
     @ Back to User mode
-    msr CPSR_c, #0x10           @sets CPSR_c bits adequated to user mode
+    msr CPSR_c, #0x10           @ Sets CPSR_c bits adequated to user mode
     mov pc, #0x77802000         @ Jump to DUMMYUSER
 
 
@@ -338,20 +338,20 @@ main:
 
 @ Interruption mode stacks
 .org 0x77701000
-SVC_stack: .space 1024
-UND_stack: .space 1024
-ABT_stack: .space 1024
-UND_stack: .space 1024
+
+SVC_stack: .space MODE_STACK_SZ
+UND_stack: .space MODE_STACK_SZ
+ABT_stack: .space MODE_STACK_SZ
+IRQ_stack: .space MODE_STACK_SZ
+FIQ_stack: .space MODE_STACK_SZ
 
 @ User software goes in this memory range
+.set PROCESS_STACK_SZ, 2048   @ Size of each process to record all registers + CPSR
+.set MODE_STACK_SZ, 1000      @ Stack size of each user mode
 
-.set PROCESS_STACK_SZ, 2048   @each process should have a user mode to store 18 registers r0 to 15, and CPSR 
-                                @which equals a memory space of 17 x 4 = 68 bytes
 
 @ User and supervisor mode stacks
 .org 0x77705800
-
-
 
 PID8_sup: .space PROCESS_STACK_SZ
 PID8: .space PROCESS_STACK_SZ
