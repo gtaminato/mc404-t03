@@ -19,38 +19,66 @@ RESET_HANDLER:
     msr CPSR_c, #0xD3 
 
     @Set UART - according to uart.pdf
-    .set UART_BASE, 0x53FBC000
-    .set UART_UCR1, 0x80
-    .set UART_UCR2, 0x84
-    .set UART_UCR3, 0x88
-    .set UART_UCR4, 0x8C
-    .set UART_UFCR, 0x90
-    .set UART_UBIR, 0xA4
-    .set UART_UBMR, 0xA8
-    .set UART_USR1, 0x94
-    .set UART_UTXD, 0x40
+    SET_UART:
+        .set UART_BASE, 0x53FBC000
+        .set UART_UCR1, 0x80
+        .set UART_UCR2, 0x84
+        .set UART_UCR3, 0x88
+        .set UART_UCR4, 0x8C
+        .set UART_UFCR, 0x90
+        .set UART_UBIR, 0xA4
+        .set UART_UBMR, 0xA8
+        .set UART_USR1, 0x94
+        .set UART_UTXD, 0x40
+        
+        @1-Enable UART
+        ldr r1, =UART_BASE
+        mov r0, #1
+        str r0, [r1, #UART_UCR1]
+        @2-Set hardware flow control, data format and enable trans and receiver
+        ldr r0, =0x2127
+        str r0, [r1, #UART_UCR2]
+        @3-Set UCR3[RXDMUXSEL] = 1
+        ldr r0, =0x0704
+        str r0, [r1, #UART_UCR3]
+        @4-Set CTS trigger level to 31
+        ldr r0, =0x7C00
+        str r0, [r1, #UART_UCR4]
+        @5-Set internal clock divider = 5 (divide input uart clock by 5).
+        ldr r0, =0x089E
+        str r0, [r1, #UART_UFCR]
+        @6 and 7-Set baud rate to 921.6Kbps based on the 20MHz reference clock.
+        ldr r0, =0x08FF
+        str r0, [r1, #UART_UBIR]
+        ldr r0, =0x0C34
+        str r0, [r1, #UART_UBMR]
     
-    @1-Enable UART
-    ldr r1, =UART_BASE
-    mov r0, #1
-    str r0, [r1, #UART_UCR1]
-    @2-Set hardware flow control, data format and enable trans and receiver
-    ldr r0, =0x2127
-    str r0, [r1, #UART_UCR2]
-    @3-Set UCR3[RXDMUXSEL] = 1
-    ldr r0, =0x0704
-    str r0, [r1, #UART_UCR3]
-    @4-Set CTS trigger level to 31
-    ldr r0, =0x7C00
-    str r0, [r1, #UART_UCR4]
-    @5-Set internal clock divider = 5 (divide input uart clock by 5).
-    ldr r0, =0x089E
-    str r0, [r1, #UART_UFCR]
-    @6 and 7-Set baud rate to 921.6Kbps based on the 20MHz reference clock.
-    ldr r0, =0x08FF
-    str r0, [r1, #UART_UBIR]
-    ldr r0, =0x0C34
-    str r0, [r1, #UART_UBMR]
+    @Set GPT as made in lab07
+    SET_GPT:
+        .set GPT_BASE,                 0x53FA0000
+        .set GPT_CR,                   0x0
+        .set GPT_PR,                   0x4
+        .set GPT_IR,                   0xC
+        .set GPT_OCR1,                 0x10
+        
+        @start setting GPT stuff
+        mov r0, #0x00000041
+        ldr r1, =GPT_BASE
+        str r0, [r1, #GPT_CR]            @enable GTP control register and set clock_src peripheral
+        
+        mov r0, #0
+        ldr r1, =GPT_BASE
+        str r0, [r1, #GPT_PR]            @set prescaler to zero
+        
+        mov r0, #100
+        ldr r1, =GPT_BASE
+        str r0, [r1, #GPT_OCR1]          @count up to 100
+        
+        mov r0, #1
+        ldr r1, =GPT_BASE
+        str r0, [r1, #GPT_IR]            @show interest in Output Compare Channel 1
+        
+        msr  CPSR_c,  #0x13   @ SUPERVISOR mode, IRQ/FIQ enabled
     
         .set USR_STACK, 0x11000
         .set SVC_STACK, 0x10800
