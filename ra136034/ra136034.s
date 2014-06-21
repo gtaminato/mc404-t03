@@ -80,12 +80,12 @@ RESET_HANDLER:
         
         msr  CPSR_c,  #0x13   @ SUPERVISOR mode, IRQ/FIQ enabled
     
-        .set USR_STACK, 0x11000
-        .set SVC_STACK, 0x10800
-        .set UND_STACK, 0x07c00
-        .set ABT_STACK, 0x07800
-        .set FIQ_STACK, 0x07400
-        .set IRQ_STACK, 0x07000
+        .set SVC_STACK, 0x77701000
+        .set UND_STACK, 0x77702000
+        .set ABT_STACK, 0x77703000
+        .set IRQ_STACK, 0x77704000
+        .set FIQ_STACK, 0x77705000
+        .set USR_STACK, 0x77706000
 
     @Configure stacks for all modes
     mov sp, #SVC_STACK
@@ -367,15 +367,15 @@ main:
 @ Interruption mode stacks
 .org 0x77701000
 
-SVC_stack: .space MODE_STACK_SZ
-UND_stack: .space MODE_STACK_SZ
-ABT_stack: .space MODE_STACK_SZ
-IRQ_stack: .space MODE_STACK_SZ
-FIQ_stack: .space MODE_STACK_SZ
+SVC_STACK_SPACE: .space MODE_STACK_SZ
+UND_STACK_SPACE: .space MODE_STACK_SZ
+ABT_STACK_SPACE: .space MODE_STACK_SZ
+IRQ_STACK_SPACE: .space MODE_STACK_SZ
+FIQ_STACK_SPACE: .space MODE_STACK_SZ
 
 @ User software goes in this memory range
-.set PROCESS_STACK_SZ, 2048   @ Size of each process to record all registers + CPSR
-.set MODE_STACK_SZ, 1000      @ Stack size of each user mode
+.set PROCESS_STACK_SZ, 0x800  @ Size of each process to record all registers + CPSR
+.set MODE_STACK_SZ, 0x3E8     @ Stack size of each user mode
 
 
 @ User and supervisor mode stacks
