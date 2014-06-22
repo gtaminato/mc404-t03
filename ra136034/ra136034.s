@@ -128,7 +128,8 @@ RESET_HANDLER:
         .set ABT_STACK, 0x77703000
         .set IRQ_STACK, 0x77704000
         .set FIQ_STACK, 0x77705000
-        .set USR_STACK, 0x77706000
+        .set USR_STACK, 0x7770D000
+        
 
         @Configure stacks for all modes
         mov sp, #SVC_STACK
@@ -223,7 +224,7 @@ SUPERVISOR_HANDLER:
             b check_available_PID       @ Check the next process
         check_available_PID_end:
             
-        @Mark found PID as in use
+        @mark found PID as in use
         mov r2, #1
         strb r2, [r1, r0]
         
@@ -232,85 +233,105 @@ SUPERVISOR_HANDLER:
         mul r2, r0, #4
         str lr, [r1, r2]
         
-        @Load context
+        @load context
         ldr r1, =contexts
         
         @Calculates displacement
-        sub r2, r0, #1          @correction
         mul r2, #68             @17 register in each context, each register having 4 bytes = 68
         add r1, r2              @now r1 points to the right context
         
-        @ Store CPSR
-        mrs r2, SPSR
-        str r2, [r1], #4
+
         
-        @ Store Registers r0-r3
-        mov r2, #0
-        str r2, [r1], #4
-        pop {r2}
-        str r2, [r1], #4
-        pop {r2}
-        str r2, [r1], #4
-        pop {r2}
-        str r2, [r1], #4
+        @store registers in the context
+        mov r2, #0              @prepares 0 to put in r0, that means a success return in child process
+        str r2, [r1], #4        @stores r0
+
+        @stores r1-r3
+        mov r3, #3              @initializes counter
+        store_register_loop_1:
+            cmp r3, #0
+            beq store_register_loop_1_end
+            
+            pop {r2}                @pops register from stack and prepares to store in register
+            str r2, [r1], #4        @store register and points to next
+            sub r3, r3, #1
+            
+            b store_register_loop_1
+        store_register_loop_1_end:
         
-        @ Store Registers r4-r12
-        mov r2, r4
-        str r2, [r1], #4
-        mov r2, r5
-        str r2, [r1], #4
-        mov r2, r6
-        str r2, [r1], #4
-        mov r2, r7
-        str r2, [r1], #4
-        mov r2, r8
-        str r2, [r1], #4
-        mov r2, r9
-        str r2, [r1], #4
-        mov r2, r10
-        str r2, [r1], #4
-        mov r2, r11
-        str r2, [r1], #4
-        mov r2, r12
-        str r2, [r1], #4
+        @store r4-r12, they are already in the registers, becase they are not caller save
+        mov r2, r4              @prepares r4  to be saved
+        str r2, [r1], #4        @save r4
+        mov r2, r5              @prepares r5  to be saved
+        str r2, [r1], #4        @save r5
+        mov r2, r6              @prepares r6  to be saved       
+        str r2, [r1], #4        @save r6
+        mov r2, r7              @prepares r7  to be saved
+        str r2, [r1], #4        @save r7
+        mov r2, r8              @prepares r8  to be saved
+        str r2, [r1], #4        @save r8
+        mov r2, r9              @prepares r9  to be saved
+        str r2, [r1], #4        @save r9
+        mov r2, r10             @prepares r10 to be saved
+        str r2, [r1], #4        @save r10
+        mov r2, r11             @prepares r11 to be saved
+        str r2, [r1], #4        @save r11
+        mov r2, r12             @prepares r12 to be saved
+        str r2, [r1], #4        @save r12
         
-        @ Store r13
+        @store r13
         push {r4-r8}
-        ldr r2, =current_process
-        ldr r2, [r2]
         
-        @ Point r3 to stack of children process
-        ldr r3, =0x11000
-        sub r3, r3, r0, lsl #12
+        @Takes stack of child process
+        ldr r3, =USR_STACK              @points to stack array
+        str r4, =PROCESS_STACK_SZ       @loads the stack size in r4
+        mov r5, r0                      @mov process PID to r5
+        mul r5, r4                      @calculates displacement
+        sub r3, r3, r5                  @points r3 to right stack
         
-        @ Point r4 to stack of parent process
-        ldr r4, =0x11000
-        sub r4, r4, r2, lsl #12
+        @Takes stack of parent process
+        ldr r2, =current                @r2 points to current process label
+        ldr r2, [r2]                    @r2 contains number of current process
+        ldr r4, =USR_STACK              @points to stack array
+        str r5, =PROCESS_STACK_SZ       @loads the stack size in r4
+        mov r6, r2                      @mov process PID to r6
+        mul r6, r5                      @calculates displacement
+        sub r4, r4, r6                  @points r3 to right stack
+
         
-        @ Go to System Mode to recover r13 and r14
+        @needs to change to user/system mode to recover r13 and r14
+        @they are not visible in supervisor mode
         msr CPSR_c, #0xDF   
-        mov r5, r13
-        mov r6, r14
+        mov r5, sp      @(r13)
+        mov r6, lr      @(r14)
         
-        @ Back to Supervidor Mode
+        @back to supervisor mode
         msr CPSR_c, #0xD3
         
         @ Loop to copy over stack
         fork_copy_stack:
-            cmp r4, r5
-            blt doneCopyingStack
-            ldr r7, [r4], #-4
-            str r7, [r3], #-4
-            b CopyStack
+            cmp r4, r5                  @when r4 points to 
+            blt fork_copy_stack_end     @stops
+            ldr r7, [r4], #-4           @loads value from parent stack
+            str r7, [r3], #-4           @stores value in child stack
+            b fork_copy_stack
         fork_copy_stack_end:
-            @ Adjust stack pointer
-            add r3, r3, #4
-            @ Save r13 and r14 on context array
-            str r3, [r1], #4
-            str r6, [r1]
-            pop {r4-r8}
+        @correct sp
+        add r3, r3, #4
+        @sa r13 and r14 on context array
+        str r3, [r1], #4            @save r13 (sp)
+        str r6, [r1], #4            @save r14 (lr)
+            
+        @store the process lr in children PC 
+        str lr, [r1], #4            @save PC (r15)
+        
+        @store CPSR
+        mrs r2, SPSR
+        str r2, [r1]
+      
+        pop {r4-r8}
 
-        add r0, r0, #1               @ Index starts on 0, so we must increment 1
+        add r0, r0, #1               @return child process PID to parent process, must add 1 to correct vector index
         b SUPERVISOR_HANDLER_EXIT  
 
         no_more_PID:
@@ -483,7 +504,6 @@ FIQ_STACK_SPACE: .space MODE_STACK_SZ
 
 @ User and supervisor mode stacks
 .org 0x77705800
-
 PID8_sup: .space PROCESS_STACK_SZ
 PID8: .space PROCESS_STACK_SZ
 PID7_sup: .space PROCESS_STACK_SZ
@@ -521,5 +541,5 @@ contexts: .space 544            @ 17 registers * 4 bytes each register * 8 proce
 
 .org 0x13000
 process_pcs:       .space 32    @stores PC from all process to be used later 32 = 4bytes from lr * 8 available
-current_process:    .space 4
+current_process:    .space 4    @label that has current process PID
 array_process:      .space 8    @array of process containing one byte for each process if 0->dead, if 1->alive
