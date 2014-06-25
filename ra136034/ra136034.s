@@ -357,7 +357,7 @@ SUPERVISOR_HANDLER:
         ldrb r1, [r1, r0]           @ Load in r1 the current process address
         mov r0, #0
         strb r0, [r1]               @ Set current PID as inactive
-        b main
+        b schedule_process
 
     SUPERVISOR_HANDLER_EXIT:
         movs pc, lr
@@ -374,7 +374,7 @@ save_context:
     ldr r0, =current_process 
     ldr r0, [r0]                @ Load process number being executed
     ldr r1, =ONE_CONTEXT_SZ
-    mul r2, r0, r1              @ (PID-1)*68
+    mul r2, r0, r1              @ PID*68
     ldr r1, =contexts
     add r0, r1, r2
     
@@ -443,54 +443,45 @@ schedule_process:
     set_next_process:
         ldr r0, =current_process
         str r1, [r0]                    @refresh current_process to contains the next process
-        @ Set return address on r14
-        ldr r0, =process_pcs
-        ldr r2, [r0, r1, lsl #2]
-        mov r14, r2
-        @ Restore registers r14 and r13
-        ldr r0, =contexts
-        add r0, r0, r1, lsl #6
-        add r0, r0, #60
-        ldr r2, [r0], #-4
-        ldr r3, [r0], #-4
-        @ Change to System Mode
+        
+        ldr r0, =ONE_CONTEXT_SZ
+        mul r2, r0, r1                  @PID*68
+        ldr r1, =contexts
+        add r0, r1, r2                  @loads in r0 the new context address
+        
+        @changes to System Mode
         msr CPSR_c, #0xDF
-        mov r14, r2
-        mov r13, r3
-        @ Back to Supervisor
+        
+        @loads all registers from memory
+        ldr r1, [r0], #4                  @load R0 from memory
+        push {r1}                         @store r0 in stack
+        ldr r1, [r0], #4                  @load R1 from memory
+        push {r1}                         @store r1 in stack
+        ldr r2, [r0], #4                  @load R2 from memory
+        ldr r3, [r0], #4                  @load R3 from memory
+        ldr r4, [r0], #4                  @load R4 from memory
+        ldr r5, [r0], #4                  @load R5 from memory
+        ldr r6, [r0], #4                  @load R6 from memory
+        ldr r7, [r0], #4                  @load R7 from memory
+        ldr r8, [r0], #4                  @load R8 from memory
+        ldr r9, [r0], #4                  @load R9 from memory
+        ldr r10, [r0], #4                 @load R10 from memory
+        ldr r11, [r0], #4                 @load R11 from memory
+        ldr r12, [r0], #4                 @load R12 from memory
+        ldr r13, [r0], #4                 @load SP from memory
+        ldr r14, [r0], #4                 @load LR from memory
+        ldr r15, [r0], #4                 @load PC from memory
+        
+        @change back to Supervisor
         msr CPSR_c, #0xD3
-        @ Restore registers r12-r4
-        ldr r2, [r0], #-4
-        mov r12, r2
-        ldr r2, [r0], #-4
-            mov r11, r2
-        ldr r2, [r0], #-4
-            mov r10, r2
-        ldr r2, [r0], #-4
-            mov r9, r2
-        ldr r2, [r0], #-4
-            mov r8, r2
-        ldr r2, [r0], #-4
-            mov r7, r2
-        ldr r2, [r0], #-4
-            mov r6, r2
-        ldr r2, [r0], #-4
-            mov r5, r2
-        ldr r2, [r0], #-4
-            mov r4, r2
-        @ Restore SPSR
-        ldr r2, =contexts
-        add r2, r2, r1, lsl #6
-        ldr r3, [r2]
-        msr SPSR, r3
-        @ Restore registers r3-r0
-        ldr r1, [r0], #-4
-        mov r3, r1
-        ldr r1, [r0], #-4
-        mov r2, r1
-        ldr r1, [r0], #-4
-        ldr r0, [r0]
-        @ Return execution to this process
+        
+        @restore CPSR
+        ldr r1, [r0]                      @load CPSR from memory       
+        msr SPSR, r1
+        pop {r1}                          @load r1
+        pop {r0}                          @load r0
+        
+        @return execution to current PID
         movs pc, lr
 
 .ltorg
@@ -531,7 +522,7 @@ contexts: .space 544            @ 17 registers * 4 bytes each register * 8 proce
 @ PID7: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
 @ PID8: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
 @ Each PID row: 17 registers * 4 bytes each register = 68 Bytes
-@ PID_head_context_address = 0x7770D800 + (PID-1)*68
+@ PID_head_context_address = 0x7770D800 + PID*68
 @ PID_PC_address = PID_head_context_address + 15*4
 
 
