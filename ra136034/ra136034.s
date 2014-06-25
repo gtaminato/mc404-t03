@@ -145,7 +145,7 @@ RESET_HANDLER:
         ldr sp, =UND_STACK
 
     @ Initialize processes
-    ldr r0, =array_process
+    ldr r0, =process_states
     mov r1, #1
     strb r1, [r0], #1       @ First one is enabled
     mov r1, #0
@@ -214,7 +214,7 @@ SUPERVISOR_HANDLER:
         push {r1-r3}                    @push them to make some calcs before store them in context vector
         
         @ Try to find an available PID
-        ldr r1, =array_process          @load address of array_process
+        ldr r1, =process_states          @load address of process_states
         mov r0, #0                      @ Initialize counter with 0
         check_available_PID:
             cmp r0, #8
@@ -351,7 +351,7 @@ SUPERVISOR_HANDLER:
         
     @ Make a Syscall exit
     exit:      
-        ldr r1, =array_process
+        ldr r1, =process_states
         ldr r0, =current_process
         ldr r0, [r0]                @ Load value of current PID
         ldrb r1, [r1, r0]           @ Load in r1 the current process address
@@ -415,32 +415,29 @@ save_context:
     @ Return to Supervisor
     msr CPSR_c, #0xD3
         
-main:
-    ldr r0, =current_process
-    ldr r1, [r0]
-    ldr r0, =array_process
-    mov r2, #8
-    traverseArray:
-        cmp r2, #0
-        beq endTraversal
-        cmp r1, #7
-        moveq r1, #0
-        addne r1, r1, #1
-        ldrb r3, [r0, r1]
-        cmp r3, #1
-        @ if equal go to this process, changing current_process first
-        beq changeProcess
-        sub r2, r2, #1
-        b traverseArray
-    endTraversal:
-        @ No more user processes to run, wait for interruption
-        infiniteLoop:
-            b infiniteLoop
+schedule_process:
+    ldr r0, =current_process    
+    ldr r1, [r0]                @loads currrent process number in r1
+    ldr r0, =process_states     @loads process_states in r0
+    mov r2, #8                  @initializes counter
+    schedule_process_loop:
+        cmp r2, #0                      @if no process where found
+        beq schedule_process_loop_end   @loops for ever
+        cmp r1, #7                      @if current is the last process
+        moveq r1, #0                    @back to first (round-robin)
+        addne r1, r1, #1                @if not goes to next process
+        ldrb r3, [r0, r1]               @loads next process state in r3
+        cmp r3, #1                      @if process is live        
+        beq set_next_process            @jump to next process
+        sub r2, r2, #1                  @decrements counter
+        b schedule_process_loop         @loop
+    schedule_process_loop_end:
+        b schedule_process_loop_end     @loops for ever until, interruption from GPT
             
     @ Change process and return execution to it
-    changeProcess:
+    set_next_process:
         ldr r0, =current_process
-        str r1, [r0]
+        str r1, [r0]                    @refresh current_process to contains the next process
         @ Set return address on r14
         ldr r0, =process_pcs
         ldr r2, [r0, r1, lsl #2]
@@ -535,4 +532,4 @@ contexts: .space 544            @ 17 registers * 4 bytes each register * 8 proce
 
 process_pcs:       .space 32    @stores PC from all process to be used later 32 = 4bytes from lr * 8 available
 current_process:    .space 4    @label that has current process PID
-array_process:      .space 8    @array of process containing one byte for each process if 0->dead, if 1->alive
+process_states:      .space 8    @array of process containing one byte for each process if 0->dead, if 1->alive
