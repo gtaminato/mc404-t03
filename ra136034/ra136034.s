@@ -369,7 +369,7 @@ SCHEDULE_HANDLE:
 
 @ Save current context in array of contexts
 save_context:
-    push {r0, r1, r2}
+    push {r0, r1, r2, lr}
 
     ldr r0, =current_process 
     ldr r0, [r0]                @ Load process number being executed
@@ -409,6 +409,7 @@ save_context:
     str r2, [r0], #4
     
     @ Save PC
+    pop {lr}
     sub lr, lr, #4
     str lr, [r0], #4
     
