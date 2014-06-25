@@ -369,7 +369,7 @@ SCHEDULE_HANDLE:
 
 @ Save current context in array of contexts
 save_context:
-    push {r0, r1, r2}
+    push {r0, r1, r2, lr}
 
     ldr r0, =current_process 
     ldr r0, [r0]                @ Load process number being executed
@@ -397,14 +397,19 @@ save_context:
     str r12, [r0], #4           @ Save r12
     
     @ Now we need to switch to System mode
-    @ and save r13-r14
+    @ to load r13 and r14
     msr CPSR_c, #0xDF
     mov r1, r13
     mov r2, r14
+    
+    @ Switch back to IRQ Mode
+    @ to save r13 and r14
+    msr CPSR_c, #0x92
     str r1, [r0], #4
     str r2, [r0], #4
     
     @ Save PC
+    pop {lr}
     sub lr, lr, #4
     str lr, [r0], #4
     
