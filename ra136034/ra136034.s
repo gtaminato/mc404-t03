@@ -132,17 +132,17 @@ RESET_HANDLER:
         
 
         @Configure stacks for all modes
-        mov sp, #SVC_STACK
+        ldr sp, =SVC_STACK
         msr CPSR_c, #0xDF  @ Enter system mode, FIQ/IRQ disabled
-        mov sp, #USR_STACK
+        ldr sp, =USR_STACK
         msr CPSR_c, #0xD1  @ Enter FIQ mode, FIQ/IRQ disabled
-        mov sp, #FIQ_STACK
+        ldr sp, =FIQ_STACK
         msr CPSR_c, #0xD2  @ Enter IRQ mode, FIQ/IRQ disabled
-        mov sp, #IRQ_STACK
+        ldr sp, =IRQ_STACK
         msr CPSR_c, #0xD7  @ Enter abort mode, FIQ/IRQ disabled
-        mov sp, #ABT_STACK
+        ldr sp, =ABT_STACK
         msr CPSR_c, #0xDB  @ Enter undefined mode, FIQ/IRQ disabled
-        mov sp, #UND_STACK
+        ldr sp, =UND_STACK
 
     @ Initialize processes
     ldr r0, =array_process
@@ -157,8 +157,8 @@ RESET_HANDLER:
     strb r1, [r0], #1
     strb r1, [r0]
     
-    .set ONE_CONTEXT_SZ, #68
-    .set PC_DISPLACEMENT, #60
+    .set ONE_CONTEXT_SZ, 68
+    .set PC_DISPLACEMENT, 60
 
     @ Initialize current_process
     ldr r0, =current_process
@@ -166,7 +166,9 @@ RESET_HANDLER:
 
     @ Back to User mode
     msr CPSR_c, #0x10           @ Sets CPSR_c bits adequated to user mode
-    mov pc, #0x77802000         @ Jump to DUMMYUSER
+    ldr pc, =0x77802000         @ Jump to DUMMYUSER
+    
+.ltorg
 
 
 SUPERVISOR_HANDLER:
@@ -230,14 +232,16 @@ SUPERVISOR_HANDLER:
         
         @store the process lr in 
         ldr r1, =process_pcs
-        mul r2, r0, #4
+        mov r3, #4
+        mul r2, r0, r3
         str lr, [r1, r2]
         
         @load context
         ldr r1, =contexts
         
         @Calculates displacement
-        mul r2, #68             @17 register in each context, each register having 4 bytes = 68
+        mov r3, #68
+        mul r2, r3              @17 register in each context, each register having 4 bytes = 68
         add r1, r2              @now r1 points to the right context
         
 
@@ -284,7 +288,7 @@ SUPERVISOR_HANDLER:
         
         @Takes stack of child process
         ldr r3, =USR_STACK              @points to stack array
-        str r4, =PROCESS_STACK_SZ       @loads the stack size in r4
+        ldr r4, =PROCESS_STACK_SZ       @loads the stack size in r4
         mov r5, r0                      @mov process PID to r5
         mul r5, r4                      @calculates displacement
         sub r3, r3, r5                  @points r3 to right stack
@@ -293,7 +297,7 @@ SUPERVISOR_HANDLER:
         ldr r2, =current                @r2 points to current process label
         ldr r2, [r2]                    @r2 contains number of current process
         ldr r4, =USR_STACK              @points to stack array
-        str r5, =PROCESS_STACK_SZ       @loads the stack size in r4
+        ldr r5, =PROCESS_STACK_SZ       @loads the stack size in r4
         mov r6, r2                      @mov process PID to r6
         mul r6, r5                      @calculates displacement
         sub r4, r4, r6                  @points r3 to right stack
@@ -358,6 +362,8 @@ SUPERVISOR_HANDLER:
     SUPERVISOR_HANDLER_EXIT:
         movs pc, lr
         
+.ltorg
+        
 SCHEDULE_HANDLE:
     b save_context
 
@@ -367,8 +373,7 @@ save_context:
 
     ldr r0, =current_process 
     ldr r0, [r0]                @ Load process number being executed
-    sub r0, r0, #1
-    ldr r1, ONE_CONTEXT_SZ
+    ldr r1, =ONE_CONTEXT_SZ
     mul r2, r0, r1              @ (PID-1)*68
     ldr r1, =contexts
     add r0, r1, r2
@@ -488,41 +493,30 @@ main:
 
 .ltorg
 
-@ Interruption mode stacks
-.org 0x77701000
-
-SVC_STACK_SPACE: .space MODE_STACK_SZ
-UND_STACK_SPACE: .space MODE_STACK_SZ
-ABT_STACK_SPACE: .space MODE_STACK_SZ
-IRQ_STACK_SPACE: .space MODE_STACK_SZ
-FIQ_STACK_SPACE: .space MODE_STACK_SZ
-
 @ User software goes in this memory range
 .set PROCESS_STACK_SZ, 0x800  @ Size of each process to record all registers + CPSR
-.set MODE_STACK_SZ, 0x3E8     @ Stack size of each user mode
-
 
 @ User and supervisor mode stacks
-.org 0x77705800
-PID8_sup: .space PROCESS_STACK_SZ
-PID8: .space PROCESS_STACK_SZ
-PID7_sup: .space PROCESS_STACK_SZ
-PID7: .space PROCESS_STACK_SZ
-PID6_sup: .space PROCESS_STACK_SZ
-PID6: .space PROCESS_STACK_SZ
-PID5_sup: .space PROCESS_STACK_SZ
-PID5: .space PROCESS_STACK_SZ
-PID4_sup: .space PROCESS_STACK_SZ
-PID4: .space PROCESS_STACK_SZ
-PID3_sup: .space PROCESS_STACK_SZ
-PID3: .space PROCESS_STACK_SZ
-PID2_sup: .space PROCESS_STACK_SZ
-PID2: .space PROCESS_STACK_SZ
-PID1_sup: .space PROCESS_STACK_SZ
-PID1: .space PROCESS_STACK_SZ
+@ Not necessary, just to make easier the understanding
+@ of stack positions in memory
+.set PID8_sup, 0x77705800
+.set PID8, 0x77706000
+.set PID7_sup, 0x77706800
+.set PID7, 0x77707000
+.set PID6_sup, 0x77707800
+.set PID6, 0x77708000
+.set PID5_sup, 0x77708800
+.set PID5, 0x77709000
+.set PID4_sup, 0x77709800
+.set PID4, 0x7770A000
+.set PID3_sup, 0x7770A800
+.set PID3, 0x7770B000
+.set PID2_sup, 0x7770B800
+.set PID2, 0x7770C000
+.set PID1_sup, 0x7770C800
+.set PID1, 0x7770D000
 
 @ Array to hold saved contexts
-.org 0x7770D800
 contexts: .space 544            @ 17 registers * 4 bytes each register * 8 process = 544
 
 @ Graphic representation of contexts
@@ -539,7 +533,6 @@ contexts: .space 544            @ 17 registers * 4 bytes each register * 8 proce
 @ PID_PC_address = PID_head_context_address + 15*4
 
 
-.org 0x13000
 process_pcs:       .space 32    @stores PC from all process to be used later 32 = 4bytes from lr * 8 available
 current_process:    .space 4    @label that has current process PID
 array_process:      .space 8    @array of process containing one byte for each process if 0->dead, if 1->alive
