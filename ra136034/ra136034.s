@@ -62,6 +62,7 @@ RESET_HANDLER:
         .set GPT_PR,                   0x4
         .set GPT_IR,                   0xC
         .set GPT_OCR1,                 0x10
+        .set GPT_SR,                   0x8 
         
         @start setting GPT stuff
         mov r0, #0x00000041
@@ -228,21 +229,13 @@ SUPERVISOR_HANDLER:
             
         @mark found PID as in use
         mov r2, #1
-        strb r2, [r1, r0]
-        
-        @store the process lr in 
-        ldr r1, =process_pcs
-        mov r3, #4
-        mul r2, r0, r3
-        str lr, [r1, r2]
+        strb r2, [r1, r0]               @r0 points to process_states
         
         @load context
         ldr r1, =contexts
-        
-        @Calculates displacement
-        mov r3, #68
-        mul r2, r3              @17 register in each context, each register having 4 bytes = 68
-        add r1, r2              @now r1 points to the right context
+        ldr r2, =ONE_CONTEXT_SZ         @start displaced calculation
+        mul r2, r0                      @17 register in each context, each register having 4 bytes = 68
+        add r1, r2                      @now r1 points to the right context
         
 
         
@@ -294,7 +287,7 @@ SUPERVISOR_HANDLER:
         sub r3, r3, r5                  @points r3 to right stack
         
         @Takes stack of parent process
-        ldr r2, =current                @r2 points to current process label
+        ldr r2, =current_process        @r2 points to current process label
         ldr r2, [r2]                    @r2 contains number of current process
         ldr r4, =USR_STACK              @points to stack array
         ldr r5, =PROCESS_STACK_SZ       @loads the stack size in r4
@@ -322,7 +315,7 @@ SUPERVISOR_HANDLER:
         fork_copy_stack_end:
         @correct sp
         add r3, r3, #4
-        @sa r13 and r14 on context array
+        @save r13 and r14 on context array
         str r3, [r1], #4            @save r13 (sp)
         str r6, [r1], #4            @save r14 (lr)
             
@@ -355,8 +348,8 @@ SUPERVISOR_HANDLER:
         ldr r0, =current_process
         ldr r0, [r0]                @ Load value of current PID
         ldrb r1, [r1, r0]           @ Load in r1 the current process address
-        mov r0, #0
-        strb r0, [r1]               @ Set current PID as inactive
+        mov r2, #0
+        strb r2, [r1, r0]               @ Set current PID as inactive
         b schedule_process
 
     SUPERVISOR_HANDLER_EXIT:
@@ -365,8 +358,11 @@ SUPERVISOR_HANDLER:
 .ltorg
         
 SCHEDULE_HANDLE:
-    b save_context
-
+    @set GPT_SR to 1 to let GPT that an interruption was threated
+    mov r0, #1
+    ldr r1, =GPT_BASE
+    str r0, [r1, #GPT_SR]
+    
 @ Save current context in array of contexts
 save_context:
     push {r0, r1, r2, lr}
@@ -447,7 +443,7 @@ schedule_process:
         ldr r0, =ONE_CONTEXT_SZ
         mul r2, r0, r1                  @PID*68
         ldr r1, =contexts
-        add r0, r1, r2                  @loads in r0 the new context address
+        add r0, r1, r2                  @r0 points displaced address
         
         @changes to System Mode
         msr CPSR_c, #0xDF
@@ -470,18 +466,21 @@ schedule_process:
         ldr r12, [r0], #4                 @load R12 from memory
         ldr r13, [r0], #4                 @load SP from memory
         ldr r14, [r0], #4                 @load LR from memory
-        ldr r15, [r0], #4                 @load PC from memory
+        ldr r1, [r0], #4                  @load PC from memory
         
         @change back to Supervisor
         msr CPSR_c, #0xD3
         
-        @restore CPSR
-        ldr r1, [r0]                      @load CPSR from memory       
-        msr SPSR, r1
+        @restore SPSR
+        ldr r0, [r0]                      @load CPSR from memory       
+        msr SPSR, r0
+        mov lr, r1
         pop {r1}                          @load r1
         pop {r0}                          @load r0
         
+        
         @return execution to current PID
+        @sub lr, lr, #4
         movs pc, lr
 
 .ltorg
@@ -510,7 +509,7 @@ schedule_process:
 .set PID1, 0x7770D000
 
 @ Array to hold saved contexts
-contexts: .space 544            @ 17 registers * 4 bytes each register * 8 process = 544
+contexts: .space 1200            @ 17 registers * 4 bytes each register * 8 process = 544
 
 @ Graphic representation of contexts
 @ PID1: [R0][R1][R2][R3][R4][R5][R6][R7][R8][R9][R10][R11][R12][SP][LR][PC][CSPR]
